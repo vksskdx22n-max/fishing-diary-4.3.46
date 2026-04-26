@@ -329,7 +329,7 @@ if(localStorage.getItem('fd_pwd_ok')===_PWD_HASH){
     <div>
       <div class="header-title">🎣 Fishing Diary</div>
       <div style="font-size:16px;font-weight:600;color:#fff;opacity:.9;margin-top:4px;text-shadow:0 1px 3px rgba(0,0,0,.4);padding-left:1.6em">Laguna di Venezia</div>
-      <div style="font-size:12px;color:#fff;opacity:.85;margin-top:4px;padding-left:1.6em;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.4)">vers. 4.3.46 · <a href="https://docs.google.com/forms/d/e/1FAIpQLSdixNuJt0e-KEVQgPTVMowOy4RxPMTRqrkozU_R-AoeFHy4zA/viewform?usp=header" target="_blank" style="color:#fff;opacity:.9;text-decoration:underline">✉️ Segnala un problema</a></div>
+      <div style="font-size:12px;color:#fff;opacity:.85;margin-top:4px;padding-left:1.6em;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.4)">vers. 4.3.47 · <a href="https://docs.google.com/forms/d/e/1FAIpQLSdixNuJt0e-KEVQgPTVMowOy4RxPMTRqrkozU_R-AoeFHy4zA/viewform?usp=header" target="_blank" style="color:#fff;opacity:.9;text-decoration:underline">✉️ Segnala un problema</a></div>
       <div class="header-info" style="margin-top:8px">I dati vengono salvati nel browser. <b>Esporta</b> regolarmente in JSON/CSV per non perderli.</div>
     </div>
     <div class="header-pescatore">
@@ -763,7 +763,7 @@ if(localStorage.getItem('fd_pwd_ok')===_PWD_HASH){
   <!-- ===== SEZIONE TRACCIATI GPS (spostata in cima, sopra elenco uscite) ===== -->
   <div class="card" style="margin-top:12px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="trkToggleSezione()">
-      <div class="section-title" style="margin-bottom:0">🛰 Tracciati GPS <span id="trk-sezione-count" style="font-weight:400;color:var(--muted)">(0)</span></div>
+      <div class="section-title" style="margin-bottom:0">🛰 Tracciati GPS <span id="trk-sezione-count" style="font-weight:400;color:var(--muted)">(0)</span> <span id="trk-sezione-totkm" style="font-weight:400;color:var(--muted);font-size:13px"></span></div>
       <span id="trk-sezione-chevron" style="font-size:13px;color:var(--muted)">▼</span>
     </div>
     <div id="trk-sezione-body" style="display:none;margin-top:12px">
@@ -2393,7 +2393,7 @@ function esportaJSON(){
   var nome='diario_pesca_'+dev+'_'+gg+'-'+mm+'-'+aaaa+'.json';
   var payload={
     _format:'fd-v2',
-    _versione:'4.3.38',
+    _versione:'4.3.47',
     uscite:uscite,
     tracciati:typeof tracciati!=='undefined'?tracciati:[]
   };
@@ -2526,6 +2526,34 @@ function buildStoricoUscite() {
   var tot  = uscite.reduce(function(acc,u){ return acc+(u.catture||[]).length; },0);
   var prod = uscite.filter(function(u){ return (u.catture||[]).length>0; }).length;
   testo += 'Riepilogo: '+tot+' spigole in '+uscite.length+' uscite ('+Math.round(prod/uscite.length*100)+'% produttive).';
+  // Sezione tracciati GPS (4.3.47)
+  testo += buildStoricoTracciati();
+  return testo;
+}
+
+function buildStoricoTracciati(){
+  var trks = (typeof tracciati!=='undefined'?tracciati:[])||[];
+  if(!trks.length) return '\n\nTRACCIATI GPS: Nessun tracciato registrato.';
+  var totKm=0, totDur=0, totMov=0, totFer=0;
+  var righe=[];
+  trks.slice(-30).forEach(function(t){
+    var m=trkMetriche(t);
+    totKm+=m.km; totDur+=m.durata_min; totMov+=m.t_movimento_min; totFer+=m.t_fermo_min;
+    var dataStr=trkFmtData(t.data_inizio);
+    var oraStr=trkFmtOra(t.data_inizio);
+    var r='- '+dataStr+' '+oraStr+' | '+m.km.toFixed(2)+' km | durata '+trkFmtDurata(m.durata_min)+
+          ' | movimento '+trkFmtDurata(m.t_movimento_min)+' | fermo '+trkFmtDurata(m.t_fermo_min)+
+          ' | vel media '+m.vel_media_kmh.toFixed(1)+' km/h | vel max '+m.vel_max_kmh.toFixed(1)+' km/h'+
+          ' | spot catture '+m.n_spot_catture;
+    if(m.zona) r+=' | zona '+m.zona;
+    righe.push(r);
+  });
+  // Totale km su tutti i tracciati (non solo ultimi 30)
+  var totKmAll=0;
+  trks.forEach(function(t){ totKmAll+=trkMetriche(t).km; });
+  var testo='\n\nTRACCIATI GPS ('+trks.length+' tracciati registrati):\n';
+  testo+=righe.join('\n');
+  testo+='\nRiepilogo: '+totKmAll.toFixed(1)+' km totali percorsi nelle uscite con tracciamento GPS.';
   return testo;
 }
 
@@ -2743,8 +2771,8 @@ function trkFabClick(){
     trkModalShow({
       icon:'🛰',
       title:'Avviare tracciato GPS?',
-      body:'Il telefono registrerà la tua posizione ogni 30 secondi fino allo stop. Tieni lo schermo acceso per la registrazione continua.',
-      confirmText:'Sì, avvia',
+      bodyHtml:'<div style="background:#fff4e0;border:1px solid #e07b39;border-radius:10px;padding:14px;color:#1a1a1a;font-size:16px;font-weight:600;line-height:1.4">⚠️ Imposta lo schermo del telefono su <span style="color:#c0392b;font-size:18px;text-decoration:underline">"Mai"</span></div>',
+      confirmText:'Avvia',
       azione:'start'
     });
   }
@@ -2753,7 +2781,11 @@ function trkFabClick(){
 function trkModalShow(opts){
   document.getElementById('trk-modal-icon').textContent=opts.icon;
   document.getElementById('trk-modal-title').textContent=opts.title;
-  document.getElementById('trk-modal-body').textContent=opts.body;
+  if(opts.bodyHtml){
+    document.getElementById('trk-modal-body').innerHTML=opts.bodyHtml;
+  } else {
+    document.getElementById('trk-modal-body').textContent=opts.body;
+  }
   document.getElementById('trk-modal-confirm').textContent=opts.confirmText;
   trk.azionePending=opts.azione;
   document.getElementById('trk-modal').classList.add('visible');
@@ -2905,8 +2937,8 @@ function trkStop(){
 // Calcolo metriche avanzate per un tracciato salvato
 function trkMetriche(t){
   var punti=t.punti||[];
-  if(punti.length<2)return {km:0,durata_min:0,t_movimento_min:0,t_fermo_min:0,n_soste:0};
-  var km=0,tMov=0,tFer=0,soste=[];
+  if(punti.length<2)return {km:0,durata_min:0,t_movimento_min:0,t_fermo_min:0,n_soste:0,vel_media_kmh:0,vel_max_kmh:0,n_spot_catture:0,zona:''};
+  var km=0,tMov=0,tFer=0,soste=[],velMax=0,kmMov=0;
   var sostaCorrente=null;
   for(var i=1;i<punti.length;i++){
     var p1=punti[i-1],p2=punti[i];
@@ -2914,12 +2946,14 @@ function trkMetriche(t){
     var dt=(p2.t-p1.t)/1000;
     km+=d/1000;
     var velKmh=dt>0?(d/dt)*3.6:0;
+    if(velKmh>velMax&&velKmh<150)velMax=velKmh; // filtro outlier (>150 km/h = errore GPS)
     if(velKmh<2){
       tFer+=dt;
       if(!sostaCorrente){sostaCorrente={lat:p2.lat,lon:p2.lon,tInizio:p1.t,tFine:p2.t};}
       else{sostaCorrente.tFine=p2.t;sostaCorrente.lat=(sostaCorrente.lat+p2.lat)/2;sostaCorrente.lon=(sostaCorrente.lon+p2.lon)/2;}
     } else {
       tMov+=dt;
+      kmMov+=d/1000;
       if(sostaCorrente){
         if((sostaCorrente.tFine-sostaCorrente.tInizio)/60000>=5)soste.push(sostaCorrente);
         sostaCorrente=null;
@@ -2928,13 +2962,25 @@ function trkMetriche(t){
   }
   if(sostaCorrente&&(sostaCorrente.tFine-sostaCorrente.tInizio)/60000>=5)soste.push(sostaCorrente);
   var durTot=(punti[punti.length-1].t-punti[0].t)/1000;
+  var velMedia=tMov>0?(kmMov/(tMov/3600)):0;
+  // Zona prevalente: derivata da uscita associata se presente
+  var zona='';
+  if(t.uscita_id){
+    var u=(typeof uscite!=='undefined'?uscite:[]).find(function(x){return x.id===t.uscita_id;});
+    if(u&&u.zona)zona=u.zona;
+  }
+  var nSpotCatture=Array.isArray(t.spot_catture)?t.spot_catture.length:0;
   return {
     km:km,
     durata_min:durTot/60,
     t_movimento_min:tMov/60,
     t_fermo_min:tFer/60,
     n_soste:soste.length,
-    soste:soste
+    soste:soste,
+    vel_media_kmh:velMedia,
+    vel_max_kmh:velMax,
+    n_spot_catture:nSpotCatture,
+    zona:zona
   };
 }
 
@@ -2961,6 +3007,13 @@ function trkRenderLista(){
   // Aggiorna sempre il contatore nell'header
   var cnt=document.getElementById('trk-sezione-count');
   if(cnt)cnt.textContent='('+(tracciati?tracciati.length:0)+')';
+  // Totale km nell'header
+  var totKm=0;
+  if(tracciati&&tracciati.length){
+    tracciati.forEach(function(t){ totKm+=trkMetriche(t).km; });
+  }
+  var totEl=document.getElementById('trk-sezione-totkm');
+  if(totEl)totEl.textContent=totKm>0?'· '+totKm.toFixed(1)+' km totali':'';
   if(!cont)return;
   if(!tracciati.length){
     cont.innerHTML='<div class="empty" style="padding:1rem">Nessun tracciato registrato. Premi il pulsante 🛰 in basso a destra per iniziare.</div>';
@@ -3066,6 +3119,13 @@ function trkRipristinaStatoSezione(){
   var chev=document.getElementById('trk-sezione-chevron');
   var cnt=document.getElementById('trk-sezione-count');
   if(cnt)cnt.textContent='('+(tracciati?tracciati.length:0)+')';
+  // Totale km
+  var totKm=0;
+  if(tracciati&&tracciati.length){
+    tracciati.forEach(function(t){ totKm+=trkMetriche(t).km; });
+  }
+  var totEl=document.getElementById('trk-sezione-totkm');
+  if(totEl)totEl.textContent=totKm>0?'· '+totKm.toFixed(1)+' km totali':'';
   if(!body)return;
   var stato='0';
   try{stato=localStorage.getItem('pesca_trk_sezione_aperta')||'0';}catch(e){}
