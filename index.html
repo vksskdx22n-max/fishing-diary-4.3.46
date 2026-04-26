@@ -2322,11 +2322,12 @@ function leggiImportJSON(input){
   reader.onload=function(e){
     try{
       var data=JSON.parse(e.target.result);
-      var usciteData=[],tracciatiData=[];
-      // Nuovo formato: {_format:'fd-v2', uscite:[], tracciati:[]}
+      var usciteData=[],tracciatiData=[],spotsData=[];
+      // Nuovo formato: {_format:'fd-v2', uscite:[], tracciati:[], spots:[]}
       if(data&&typeof data==='object'&&!Array.isArray(data)&&data.uscite){
         usciteData=Array.isArray(data.uscite)?data.uscite:[];
         tracciatiData=Array.isArray(data.tracciati)?data.tracciati:[];
+        spotsData=Array.isArray(data.spots)?data.spots:[];
       }
       // Vecchio formato: array di uscite
       else if(Array.isArray(data)){
@@ -2336,7 +2337,8 @@ function leggiImportJSON(input){
         alert('⚠️ File non valido: formato non riconosciuto.');return;
       }
       var msg='Trovate '+usciteData.length+' uscite';
-      if(tracciatiData.length)msg+=' e '+tracciatiData.length+' tracciati';
+      if(tracciatiData.length)msg+=', '+tracciatiData.length+' tracciati';
+      if(spotsData.length)msg+=', '+spotsData.length+' spot';
       msg+=' nel file.\n\nScegli:\n- OK = unisci ai dati esistenti\n- Annulla = operazione annullata';
       if(!confirm(msg))return;
       // Merge uscite
@@ -2354,11 +2356,23 @@ function leggiImportJSON(input){
         trkSaveTracciati();
         nuoviTrk=nuovi.length;
       }
+      // Merge spots (4.3.47)
+      var nuoviSpot=0;
+      if(spotsData.length&&typeof spots!=='undefined'){
+        var idSpotEsist=new Set(spots.map(function(s){return s.id;}));
+        var nuoviS=spotsData.filter(function(s){return s.id&&!idSpotEsist.has(s.id);});
+        spots=spots.concat(nuoviS);
+        saveSpots();
+        nuoviSpot=nuoviS.length;
+      }
       var finale='✅ Importate '+nuoveUscite.length+' uscite nuove. Duplicate ignorate: '+(usciteData.length-nuoveUscite.length)+'.';
       if(tracciatiData.length)finale+='\n✅ Importati '+nuoviTrk+' tracciati nuovi. Duplicati ignorati: '+(tracciatiData.length-nuoviTrk)+'.';
+      if(spotsData.length)finale+='\n✅ Importati '+nuoviSpot+' spot nuovi. Duplicati ignorati: '+(spotsData.length-nuoviSpot)+'.';
       alert(finale);
       renderStorico();
       if(typeof trkRenderLista==='function')trkRenderLista();
+      if(typeof renderSpotMappa==='function')renderSpotMappa();
+      if(typeof populateSpotDropdown==='function')populateSpotDropdown();
     }catch(err){alert('⚠️ Errore nella lettura del file JSON.');}
   };
   reader.readAsText(file);
@@ -2395,7 +2409,8 @@ function esportaJSON(){
     _format:'fd-v2',
     _versione:'4.3.47',
     uscite:uscite,
-    tracciati:typeof tracciati!=='undefined'?tracciati:[]
+    tracciati:typeof tracciati!=='undefined'?tracciati:[],
+    spots:typeof spots!=='undefined'?spots:[]
   };
   dlFile(JSON.stringify(payload,null,2),nome,'application/json');
 }
